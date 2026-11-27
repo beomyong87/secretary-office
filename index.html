@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#f8f1e2" />
+  <meta name="theme-color" content="#f6ecd9" />
   <meta name="description" content="범용님 합동 비서실 - 모바일 비서실 웹앱" />
   <title>범용님 합동 비서실</title>
   <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
   <link rel="apple-touch-icon" href="assets/favicon.svg" />
   <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="preload" as="image" href="assets/office-map.webp" type="image/webp" />
   <link rel="stylesheet" href="css/style.css" />
 </head>
 <body>
@@ -34,7 +35,10 @@
 
     <!-- ================= 메인 탭 ================= -->
     <nav class="main-tabs" id="mainTabs" aria-label="주요 메뉴">
-      <button type="button" class="main-tab is-active" data-tab="chat">
+      <button type="button" class="main-tab is-active" data-tab="map">
+        <span class="main-tab-icon" aria-hidden="true">🗺️</span><span class="main-tab-label">오피스 맵</span>
+      </button>
+      <button type="button" class="main-tab" data-tab="chat">
         <span class="main-tab-icon" aria-hidden="true">💬</span><span class="main-tab-label">회의실</span>
       </button>
       <button type="button" class="main-tab" data-tab="tasks">
@@ -51,8 +55,50 @@
     <!-- ================= 본문 ================= -->
     <main class="views" id="views">
 
+      <!-- ---------- 오피스 맵 ---------- -->
+      <section class="view is-active" id="view-map" data-view="map">
+        <div class="view-scroll map-scroll">
+          <div class="map-hero">
+            <span class="map-hero-badge">👑 범용 비서실 본부</span>
+            <h2 class="map-hero-title" id="mapHeroTitle">대표님, 3개 파트가 대기 중이에요</h2>
+            <p class="map-hero-sub">방이나 캐릭터를 눌러 보세요. 파트별 최근 보고와 진행 상황을 바로 볼 수 있어요.</p>
+          </div>
+
+          <div class="map-chips" id="mapChips">
+            <button type="button" class="map-chip map-chip--toggle is-on" id="motionToggle"
+                    aria-pressed="true" title="캐릭터 핀 움직임을 켜고 끕니다">
+              <span class="map-chip-emoji" aria-hidden="true">✨</span>
+              <span id="motionLabel">움직임 ON</span>
+            </button>
+            <span class="map-chip" id="mapPartsChip">🟢 3개 파트 가동</span>
+            <span class="map-chip" id="mapOnChip">👥 ON 용이 외 2파트</span>
+          </div>
+
+          <div class="map-card">
+            <div class="map-stage" id="mapStage">
+              <picture class="map-picture">
+                <source srcset="assets/office-map.webp" type="image/webp" />
+                <img class="map-img" id="mapImg" src="assets/office-map.png"
+                     alt="나무 벽과 크림색 바닥으로 된 3D 아이소메트릭 비서실 오피스 맵" />
+              </picture>
+              <div class="map-pins" id="mapPins"></div>
+            </div>
+          </div>
+
+          <div class="map-section">
+            <div class="section-head">
+              <h2 class="section-title">파트별 최근 보고</h2>
+              <span class="section-sub" id="mapReportSub">3개 파트</span>
+            </div>
+            <div class="card-list" id="mapPartList"></div>
+          </div>
+
+          <p class="hint map-hint">방 핀을 누르면 해당 회의실·작업실로 이동하고, 캐릭터 핀을 누르면 역할·상태·최근 보고를 볼 수 있어요.</p>
+        </div>
+      </section>
+
       <!-- ---------- 회의실 ---------- -->
-      <section class="view is-active" id="view-chat" data-view="chat">
+      <section class="view" id="view-chat" data-view="chat">
         <div class="room-tabs" id="roomTabs" role="tablist" aria-label="회의실 선택"></div>
         <div class="room-meta">
           <span class="room-meta-name" id="roomMetaName">🎯 지휘실</span>
@@ -138,6 +184,38 @@
         </div>
       </section>
     </main>
+  </div>
+
+  <!-- ================= 캐릭터 정보 시트 ================= -->
+  <div class="modal" id="charModal" hidden>
+    <div class="modal-backdrop" data-close="charModal"></div>
+    <div class="modal-panel modal-panel--small" role="dialog" aria-modal="true" aria-labelledby="charName">
+      <div class="modal-head char-head">
+        <div class="char-identity">
+          <div class="char-avatar" id="charAvatar" aria-hidden="true">🥒</div>
+          <div class="char-identity-text">
+            <h2 class="modal-title" id="charName">용이</h2>
+            <p class="char-role" id="charRole">피클 · 총괄</p>
+          </div>
+        </div>
+        <button type="button" class="modal-close" data-close="charModal" aria-label="닫기">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="char-status-row" id="charStatus"></div>
+
+        <h3 class="char-section">최근 보고</h3>
+        <div class="char-report" id="charReport"></div>
+
+        <h3 class="char-section">진행 상황</h3>
+        <div class="char-tasks" id="charTasks"></div>
+      </div>
+
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close="charModal">닫기</button>
+        <button type="button" class="btn btn-primary" id="charGoRoomBtn">회의실에서 보기</button>
+      </div>
+    </div>
   </div>
 
   <!-- ================= 설정 모달 ================= -->

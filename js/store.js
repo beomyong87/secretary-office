@@ -85,7 +85,7 @@
         geminiModel: 'gemini-2.5-flash',
         defaultAll: true
       },
-      ui: { tab: 'chat', room: 'command', taskFilter: 'all' }
+      ui: { tab: 'map', room: 'command', taskFilter: 'all', movement: true }
     };
   }
 
@@ -196,9 +196,12 @@
     }
 
     if (raw.ui && typeof raw.ui === 'object') {
-      if (['chat', 'tasks', 'team', 'memos'].indexOf(raw.ui.tab) >= 0) s.ui.tab = raw.ui.tab;
+      if (['map', 'chat', 'tasks', 'team', 'memos'].indexOf(raw.ui.tab) >= 0) s.ui.tab = raw.ui.tab;
+      /* 이전 버전 저장값(movement 없음)은 첫 화면을 새 오피스 맵으로 한 번 맞춘다 */
+      if (raw.ui.movement === undefined) s.ui.tab = 'map';
       if (s.rooms[raw.ui.room]) s.ui.room = raw.ui.room;
       if (['all', '대기', '진행중', '완료'].indexOf(raw.ui.taskFilter) >= 0) s.ui.taskFilter = raw.ui.taskFilter;
+      s.ui.movement = raw.ui.movement === undefined ? true : !!raw.ui.movement;
     }
 
     return s;
@@ -289,9 +292,18 @@
 
     /* --- UI --- */
     setTab: function (tab) {
-      if (['chat', 'tasks', 'team', 'memos'].indexOf(tab) < 0) return;
+      if (['map', 'chat', 'tasks', 'team', 'memos'].indexOf(tab) < 0) return;
       if (state.ui.tab === tab) return;
       state.ui.tab = tab;
+      persist();
+      notify();
+    },
+
+    /* 오피스 맵 캐릭터 움직임 (이 기기에만 저장 · DB로 동기화되지 않음) */
+    setMovement: function (on) {
+      var v = !!on;
+      if (state.ui.movement === v) return;
+      state.ui.movement = v;
       persist();
       notify();
     },

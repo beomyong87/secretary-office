@@ -81,8 +81,9 @@
      ======================================================= */
   function renderHeader() {
     var s = store.get();
+    var chief = s.assistants.length ? s.assistants[0].name : '';
     dom.officeName.textContent = s.officeName;
-    dom.officeSub.textContent = '범용님 전용';
+    dom.officeSub.textContent = '범용님 전용' + (chief ? ' · ' + chief + ' 본부' : '');
     doc.title = s.officeName;
   }
 
@@ -112,6 +113,185 @@
     dom.connBadge.className = 'conn-badge ' + info[1];
     dom.connBadge.title = st.message ? info[0] + ' · ' + st.message : info[0];
     if (dom.settingsModal && !dom.settingsModal.hidden) renderSettingsConnStatus(st);
+  }
+
+  /* =======================================================
+     오피스 맵
+     ======================================================= */
+  /* 방 핀 위치는 일러스트(assets/office-map.png) 기준 % 좌표 */
+  var MAP_ROOMS = [
+    { key: 'command', tab: 'chat', room: 'command', icon: '🎯', label: '지휘실', x: 55, y: 20 },
+    { key: 'main', tab: 'chat', room: 'main', icon: '🏛️', label: '대회의실', x: 13, y: 52 },
+    { key: 'lounge', tab: 'chat', room: 'lounge', icon: '☕', label: '라운지', x: 80, y: 66 },
+    { key: 'tasks', tab: 'tasks', room: null, icon: '📋', label: '작업실', x: 50, y: 74 }
+  ];
+
+  /* 캐릭터 핀 자리 — 일러스트 속 캐릭터들 근처 */
+  var CHAR_SPOTS = [
+    { x: 44, y: 34 }, { x: 66, y: 34 }, { x: 38, y: 50 }, { x: 60, y: 50 },
+    { x: 76, y: 26 }, { x: 88, y: 45 }, { x: 26, y: 34 }, { x: 31, y: 69 }
+  ];
+
+  /* 가장 최근에 남긴 보고 메시지 (모든 방 통틀어) */
+  function latestReport(s, assistantId) {
+    var best = null;
+    Object.keys(s.rooms).forEach(function (rid) {
+      var room = s.rooms[rid];
+      room.messages.forEach(function (m) {
+        if (m.senderId !== assistantId) return;
+        if (!best || m.ts > best.msg.ts) best = { msg: m, roomId: rid, room: room };
+      });
+    });
+    return best;
+  }
+
+  /* 담당 작업 기준 진행 상황 */
+  function assistantProgress(s, a) {
+    var counts = { '대기': 0, '진행중': 0, '완료': 0 };
+    s.tasks.forEach(function (t) {
+      if (t.assignee === a.name && counts[t.status] !== undefined) counts[t.status]++;
+    });
+    return { counts: counts, working: counts['진행중'] > 0 };
+  }
+
+  function clipText(text, max) {
+    var t = String(text || '').replace(/\s+/g, ' ').trim();
+    return t.length > max ? t.slice(0, max - 1) + '…' : t;
+  }
+
+  var lastPinSig = '';
+
+  function renderPins(s) {
+    var sig = s.assistants.map(function (a) {
+      return a.id + '|' + a.name + '|' + a.icon;
+    }).join('~');
+    if (sig === lastPinSig) return;
+    lastPinSig = sig;
+
+    var html = MAP_ROOMS.map(function (r) {
+      return '<button type="button" class="map-pin map-pin--room" data-map-room="' + esc(r.key) +
+        '" style="--x:' + r.x + '%;--y:' + r.y + '%" aria-label="' + esc(r.label) + '로 이동">' +
+        '<span class="map-pin-icon" aria-hidden="true">' + esc(r.icon) + '</span>' +
+        '<span class="map-pin-text">' + esc(r.label) + '</span></button>';
+    }).join('');
+
+    html += s.assistants.map(function (a, i) {
+      var spot = CHAR_SPOTS[i % CHAR_SPOTS.length];
+      var delay = (-1 * (0.35 * (i % 6) + 0.2)).toFixed(2);
+      return '<button type="button" class="map-pin map-pin--char" data-char="' + esc(a.id) +
+        '" style="--x:' + spot.x + '%;--y:' + spot.y + '%;--delay:' + delay + 's"' +
+        ' aria-label="' + esc(a.name) + ' 정보 보기">' +
+        '<span class="map-pin-avatar" aria-hidden="true">' + esc(a.icon) +
+        '<span class="map-pin-dot"></span></span>' +
+        '<span class="map-pin-name">' + esc(a.name) + '</span></button>';
+    }).join('');
+
+    dom.mapPins.innerHTML = html;
+  }
+
+  function renderMap() {
+    var s = store.get();
+    var n = s.assistants.length;
+    var chief = n ? s.assistants[0].name : '';
+
+    dom.mapHeroTitle.textContent = n
+      ? '대표님, ' + n + '개 파트가 대기 중이에요'
+      : '대표님, 아직 등록된 파트가 없어요';
+
+    dom.mapPartsChip.textContent = '🟢 ' + n + '개 파트 가동';
+    dom.mapOnChip.textContent = n > 1
+      ? '👥 ON ' + chief + ' 외 ' + (n - 1) + '파트'
+      : (n === 1 ? '👥 ON ' + chief + ' 1파트' : '👥 ON 0파트');
+
+    var moving = !!s.ui.movement;
+    dom.motionToggle.classList.toggle('is-on', moving);
+    dom.motionToggle.setAttribute('aria-pressed', moving ? 'true' : 'false');
+    dom.motionLabel.textContent = moving ? '움직임 ON' : '움직임 OFF';
+    dom.mapStage.classList.toggle('is-moving', moving);
+
+    renderPins(s);
+
+    dom.mapReportSub.textContent = n + '개 파트';
+    if (!n) {
+      dom.mapPartList.innerHTML = '<p class="empty-note">비서현황에서 파트를 추가하면 여기에 나타납니다.</p>';
+      return;
+    }
+
+    dom.mapPartList.innerHTML = s.assistants.map(function (a) {
+      var report = latestReport(s, a.id);
+      var prog = assistantProgress(s, a);
+      var statusCls = prog.working ? 'is-working' : 'is-waiting';
+      var statusText = prog.working ? '작업 중' : '대기 중';
+      var body = report
+        ? '<span class="part-report">' + esc(clipText(report.msg.text, 90)) + '</span>' +
+          '<span class="part-meta">' + esc(report.room.name) + ' · ' + esc(formatShort(report.msg.ts) + ' ' + formatTime(report.msg.ts)) + '</span>'
+        : '<span class="part-report is-empty">아직 남긴 보고가 없어요.</span>' +
+          '<span class="part-meta">진행중 ' + prog.counts['진행중'] + ' · 대기 ' + prog.counts['대기'] + '</span>';
+      return '<button type="button" class="part-card" data-char="' + esc(a.id) + '">' +
+        '<span class="part-avatar" aria-hidden="true">' + esc(a.icon) + '</span>' +
+        '<span class="part-body">' +
+        '<span class="part-top"><span class="part-name">' + esc(a.name) + '</span>' +
+        '<span class="part-role">' + esc(a.role) + '</span></span>' +
+        body +
+        '<span class="part-meta"><span class="part-status ' + statusCls + '">' + statusText + '</span>' +
+        '<span>진행중 ' + prog.counts['진행중'] + '</span></span>' +
+        '</span></button>';
+    }).join('');
+  }
+
+  /* 캐릭터 정보 시트 */
+  var charTargetId = null;
+  var charTargetRoom = 'command';
+
+  function openCharModal(id) {
+    var s = store.get();
+    var a = findById(s.assistants, id);
+    if (!a) return;
+
+    charTargetId = a.id;
+    dom.charAvatar.textContent = a.icon;
+    dom.charName.textContent = a.name;
+    dom.charRole.textContent = a.role || '비서';
+
+    var prog = assistantProgress(s, a);
+    var chips = '<span class="pill ' + (prog.working ? 'pill--doing' : 'pill--done') + '">' +
+      (prog.working ? '🟠 작업 진행 중' : '🟢 대기 중') + '</span>' +
+      '<span class="pill pill--wait">진행중 ' + prog.counts['진행중'] + ' · 대기 ' + prog.counts['대기'] +
+      ' · 완료 ' + prog.counts['완료'] + '</span>' +
+      (a.pickle ? '<span class="pill pill--doing">피클</span>' : '') +
+      (a.ai ? '<span class="pill" style="color:#46699e;background:#eaf0fb;border-color:#d3e0f4">AI 응답</span>' : '');
+    dom.charStatus.innerHTML = chips;
+
+    var report = latestReport(s, a.id);
+    if (report) {
+      charTargetRoom = report.roomId;
+      dom.charReport.className = 'char-report';
+      dom.charReport.innerHTML =
+        '<p class="char-report-text">' + esc(report.msg.text) + '</p>' +
+        '<div class="char-report-foot"><span>' + esc(report.room.icon + ' ' + report.room.name) + '</span>' +
+        '<span>·</span><span>' + esc(formatShort(report.msg.ts) + ' ' + formatTime(report.msg.ts)) + '</span></div>';
+    } else {
+      charTargetRoom = s.ui.room;
+      dom.charReport.className = 'char-report is-empty';
+      dom.charReport.innerHTML = '<p class="char-report-text">아직 남긴 보고가 없어요. 회의실에서 ' +
+        esc(a.name) + '에게 첫 지시를 남겨보세요.</p>';
+    }
+
+    var mine = s.tasks.filter(function (t) { return t.assignee === a.name; })
+      .sort(function (x, y) { return y.createdAt - x.createdAt; })
+      .slice(0, 4);
+
+    if (!mine.length) {
+      dom.charTasks.innerHTML = '<p class="empty-note">담당으로 지정된 작업이 없습니다.</p>';
+    } else {
+      dom.charTasks.innerHTML = mine.map(function (t) {
+        var cls = t.status === '완료' ? 'pill--done' : (t.status === '진행중' ? 'pill--doing' : 'pill--wait');
+        return '<div class="char-task"><span class="pill ' + cls + '">' + esc(t.status) + '</span>' +
+          '<span class="char-task-title">' + esc(t.title) + '</span></div>';
+      }).join('');
+    }
+
+    openModal('charModal');
   }
 
   /* =======================================================
@@ -378,6 +558,7 @@
   function renderAll() {
     renderHeader();
     renderTabs();
+    renderMap();
     renderChat();
     renderTasks();
     renderTeam();
@@ -687,6 +868,38 @@
       if (btn) store.setTab(btn.getAttribute('data-tab'));
     });
 
+    dom.motionToggle.addEventListener('click', function () {
+      var on = !store.get().ui.movement;
+      store.setMovement(on);
+      toast(on ? '캐릭터가 움직이기 시작했어요 ✨' : '캐릭터 움직임을 잠시 멈췄어요', 2200);
+    });
+
+    dom.mapPins.addEventListener('click', function (e) {
+      var charBtn = e.target.closest('[data-char]');
+      if (charBtn) { openCharModal(charBtn.getAttribute('data-char')); return; }
+
+      var roomBtn = e.target.closest('[data-map-room]');
+      if (!roomBtn) return;
+      var key = roomBtn.getAttribute('data-map-room');
+      var target = null;
+      MAP_ROOMS.forEach(function (r) { if (r.key === key) target = r; });
+      if (!target) return;
+      if (target.room) store.setRoom(target.room);
+      store.setTab(target.tab);
+    });
+
+    dom.mapPartList.addEventListener('click', function (e) {
+      var btn = e.target.closest('[data-char]');
+      if (btn) openCharModal(btn.getAttribute('data-char'));
+    });
+
+    dom.charGoRoomBtn.addEventListener('click', function () {
+      if (!charTargetId) { closeModal('charModal'); return; }
+      store.setRoom(charTargetRoom);
+      store.setTab('chat');
+      closeModal('charModal');
+    });
+
     dom.roomTabs.addEventListener('click', function (e) {
       var btn = e.target.closest('.room-tab');
       if (btn) store.setRoom(btn.getAttribute('data-room'));
@@ -827,7 +1040,7 @@
 
     doc.addEventListener('keydown', function (e) {
       if (e.key !== 'Escape') return;
-      ['confirmModal', 'assistantModal', 'settingsModal'].forEach(function (id) {
+      ['charModal', 'confirmModal', 'assistantModal', 'settingsModal'].forEach(function (id) {
         var m = $(id);
         if (m && !m.hidden) closeModal(id);
       });
@@ -845,6 +1058,23 @@
     dom.settingsBtn = $('settingsBtn');
     dom.mainTabs = $('mainTabs');
     dom.views = $('views');
+    dom.mapHeroTitle = $('mapHeroTitle');
+    dom.mapPartsChip = $('mapPartsChip');
+    dom.mapOnChip = $('mapOnChip');
+    dom.motionToggle = $('motionToggle');
+    dom.motionLabel = $('motionLabel');
+    dom.mapStage = $('mapStage');
+    dom.mapPins = $('mapPins');
+    dom.mapPartList = $('mapPartList');
+    dom.mapReportSub = $('mapReportSub');
+    dom.charModal = $('charModal');
+    dom.charAvatar = $('charAvatar');
+    dom.charName = $('charName');
+    dom.charRole = $('charRole');
+    dom.charStatus = $('charStatus');
+    dom.charReport = $('charReport');
+    dom.charTasks = $('charTasks');
+    dom.charGoRoomBtn = $('charGoRoomBtn');
     dom.roomTabs = $('roomTabs');
     dom.roomMetaName = $('roomMetaName');
     dom.roomMetaOn = $('roomMetaOn');
