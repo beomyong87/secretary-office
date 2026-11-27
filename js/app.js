@@ -674,9 +674,13 @@
     var url = dom.settingFirebaseUrl.value.trim();
     dom.settingsConnStatus.className = 'conn-status';
     dom.settingsConnStatus.textContent = '연결 확인 중…';
-    SO.sync.test(url).then(function () {
+    SO.sync.test(url, {
+      email: dom.settingFirebaseEmail.value.trim(),
+      password: dom.settingFirebasePassword.value,
+      apiKey: dom.settingFirebaseApiKey.value.trim()
+    }).then(function (res) {
       dom.settingsConnStatus.className = 'conn-status is-live';
-      var label = SO.sync.hasAuth() ? '인증 후 ' : '';
+      var label = res && res.authed ? '인증 후 ' : '';
       dom.settingsConnStatus.textContent = '연결 성공 · ' + label + '읽기 가능. (저장을 누르면 동기화가 시작됩니다)';
     }, function (err) {
       dom.settingsConnStatus.className = 'conn-status is-error';

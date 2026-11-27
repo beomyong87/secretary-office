@@ -73,7 +73,11 @@
   }
 
   /* ---------- 인증 (Firebase Auth 이메일/비밀번호) ---------- */
+  /* '연결 테스트'에서 저장 전 입력값으로만 쓸 임시 계정 설정 */
+  var authOverride = null;
+
   function authConfig() {
+    if (authOverride) return authOverride;
     var settings = (SO.store.get() && SO.store.get().settings) || {};
     return {
       email: String(settings.firebaseEmail || '').trim(),
@@ -439,13 +443,34 @@
     setStatus('local', '');
   }
 
-  function test(url) {
+  function test(url, cfg) {
     var u = normalizeUrl(url);
     if (!u) return Promise.reject(new Error('URL을 입력해 주세요.'));
     if (!isDbUrl(u)) return Promise.reject(new Error('URL 형식이 올바르지 않습니다.'));
-    return ensureToken().then(function () {
+
+    var usesOverride = !!(cfg && cfg.email && cfg.password && cfg.apiKey);
+    if (usesOverride) {
+      authOverride = { email: String(cfg.email).trim(), password: String(cfg.password), apiKey: String(cfg.apiKey).trim() };
+      resetTokens();
+    }
+
+    function settle() {
+      if (!usesOverride) return;
+      authOverride = null;
+      resetTokens();
+    }
+
+    var authed = false;
+    return ensureToken().then(function (token) {
+      authed = !!token;
       return fetchAll(u);
-    }).then(function () { return true; });
+    }).then(function () {
+      settle();
+      return { ok: true, authed: authed };
+    }, function (err) {
+      settle();
+      throw err;
+    });
   }
 
   function init() {
