@@ -72,7 +72,7 @@
   function reply(opts) {
     var state = SO.store.get();
     var key = state.settings.geminiKey;
-    var model = state.settings.geminiModel || 'gemini-2.5-flash';
+    var model = state.settings.geminiModel || 'gemini-3.5-flash-lite';
 
     if (!key) return Promise.reject(new Error('Gemini API 키가 설정되어 있지 않습니다.'));
     var room = state.rooms[opts.roomId];

@@ -7,6 +7,11 @@
   var SO = global.SO = global.SO || {};
   var STORAGE_KEY = 'secretaryOffice.v1';
 
+  /* 기본 Gemini 모델 — 무료 API 키에서도 동작하는 모델 */
+  var DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
+  /* 예전 기본값으로 저장된 기기는 새 기본값으로 옮긴다 */
+  var LEGACY_GEMINI_MODELS = { 'gemini-2.5-flash': DEFAULT_GEMINI_MODEL };
+
   /* ---------- 유틸 ---------- */
   function uid(prefix) {
     return (prefix || 'id') + '-' + Date.now().toString(36) + '-' +
@@ -17,6 +22,12 @@
 
   function str(v, fallback) {
     return (typeof v === 'string' && v) ? v : (fallback || '');
+  }
+
+  function normalizeGeminiModel(v) {
+    var m = str(v, DEFAULT_GEMINI_MODEL).trim();
+    if (!m) return DEFAULT_GEMINI_MODEL;
+    return LEGACY_GEMINI_MODELS[m] || m;
   }
 
   function me() {
@@ -82,7 +93,7 @@
         senderId: 'me',
         firebaseUrl: '',
         geminiKey: '',
-        geminiModel: 'gemini-2.5-flash',
+        geminiModel: DEFAULT_GEMINI_MODEL,
         defaultAll: true
       },
       ui: { tab: 'map', room: 'command', taskFilter: 'all', movement: true }
@@ -189,7 +200,7 @@
       s.settings.senderId = str(raw.settings.senderId, 'me');
       s.settings.firebaseUrl = str(raw.settings.firebaseUrl, '');
       s.settings.geminiKey = str(raw.settings.geminiKey, '');
-      s.settings.geminiModel = str(raw.settings.geminiModel, 'gemini-2.5-flash');
+      s.settings.geminiModel = normalizeGeminiModel(raw.settings.geminiModel);
       /* 저장된 값이 없으면 기본 ON */
       s.settings.defaultAll = raw.settings.defaultAll === undefined
         ? true : !!raw.settings.defaultAll;
@@ -221,7 +232,14 @@
     try {
       var raw = global.localStorage.getItem(STORAGE_KEY);
       if (!raw) return seed();
-      return normalize(JSON.parse(raw));
+      var parsed = JSON.parse(raw);
+      var storedModel = parsed && parsed.settings ? parsed.settings.geminiModel : undefined;
+      var s = normalize(parsed);
+      /* 모델명이 바뀐 경우(마이그레이션)는 다음 저장을 기다리지 않고 바로 확정한다 */
+      if (storedModel !== s.settings.geminiModel) {
+        try { global.localStorage.setItem(STORAGE_KEY, JSON.stringify(s)); } catch (err) { /* ignore */ }
+      }
+      return s;
     } catch (err) {
       return seed();
     }
@@ -465,10 +483,10 @@
       if (typeof patch.firebaseUrl === 'string') state.settings.firebaseUrl = patch.firebaseUrl.trim();
       if (typeof patch.geminiKey === 'string') state.settings.geminiKey = patch.geminiKey.trim();
       if (typeof patch.geminiModel === 'string' && patch.geminiModel.trim()) {
-        state.settings.geminiModel = patch.geminiModel.trim();
+        state.settings.geminiModel = normalizeGeminiModel(patch.geminiModel);
       }
       if (typeof patch.defaultAll === 'boolean') state.settings.defaultAll = patch.defaultAll;
-      if (!state.settings.geminiModel) state.settings.geminiModel = 'gemini-2.5-flash';
+      if (!state.settings.geminiModel) state.settings.geminiModel = DEFAULT_GEMINI_MODEL;
       persist();
       notify();
     },

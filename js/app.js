@@ -627,7 +627,7 @@
     dom.settingOfficeName.value = s.officeName;
     dom.settingFirebaseUrl.value = s.settings.firebaseUrl;
     dom.settingGeminiKey.value = s.settings.geminiKey;
-    dom.settingGeminiModel.value = s.settings.geminiModel || 'gemini-2.5-flash';
+    dom.settingGeminiModel.value = s.settings.geminiModel || 'gemini-3.5-flash-lite';
     renderSettingsInfo();
     renderSettingsConnStatus(SO.sync.status());
     openModal('settingsModal');
@@ -641,7 +641,7 @@
     store.setSettings({
       firebaseUrl: url,
       geminiKey: dom.settingGeminiKey.value.trim(),
-      geminiModel: dom.settingGeminiModel.value.trim() || 'gemini-2.5-flash'
+      geminiModel: dom.settingGeminiModel.value.trim() || 'gemini-3.5-flash-lite'
     });
     if (name) store.renameOffice(name);
 

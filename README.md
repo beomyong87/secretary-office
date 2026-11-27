@@ -89,7 +89,7 @@ python3 -m http.server 8000
 ## Gemini API 연결 (선택)
 
 1. <https://aistudio.google.com/apikey> 에서 API 키를 발급합니다.
-2. 앱에서 **⚙️ 설정 → Gemini API Key**에 입력하고 저장합니다(모델 기본값 `gemini-2.5-flash`).
+2. 앱에서 **⚙️ 설정 → Gemini API Key**에 입력하고 저장합니다(모델 기본값 `gemini-3.5-flash-lite`).
 3. 비서현황에서 **AI 응답**이 켜진 비서(기본: 리서처, 기획담당)를 `@리서처` 처럼 호출하면 자동으로 답합니다. `@all`은 AI 비서 전체를 호출합니다.
 
 키는 **이 브라우저의 localStorage에만** 저장되고 코드·저장소에는 들어가지 않습니다. 공용 기기에서는 사용 후 **설정 → 데이터 → 이 기기 데이터 초기화**로 지우세요(연결 설정은 유지됩니다).
