@@ -123,7 +123,25 @@
     renderRoomMeta(s);
     renderSenderChips(s);
     renderMentionChips(s);
+    renderComposer(s);
     renderMessages(false);
+  }
+
+  /* @all 기본 토글 상태 · 입력창 안내문 */
+  function renderComposer(s) {
+    var on = !!s.settings.defaultAll;
+    if (dom.defaultAllToggle) {
+      dom.defaultAllToggle.classList.toggle('is-on', on);
+      dom.defaultAllToggle.setAttribute('aria-pressed', on ? 'true' : 'false');
+      dom.defaultAllToggle.title = on
+        ? '@all 기본 켜짐 · @멘션 없이 보내도 AI 비서 전체가 답합니다'
+        : '@all 기본 꺼짐 · @이름으로 부를 때만 AI 비서가 답합니다';
+    }
+    if (dom.msgInput) {
+      dom.msgInput.placeholder = on
+        ? '메시지를 입력하세요 · @all'
+        : '메시지를 입력하세요 (@이름)';
+    }
   }
 
   function renderRoomTabs(s) {
@@ -565,12 +583,13 @@
     autoGrow();
   }
 
-  function pickAiTargets(text) {
+  function pickAiTargets(text, useDefaultAll) {
     var tokens = (text.match(/@[^\s@]+/g) || []).map(function (t) { return t.slice(1); });
-    if (!tokens.length) return [];
-
     var senderId = store.get().settings.senderId || 'me';
     var all = tokens.some(function (t) { return t === 'all' || t === '전체' || t === '모두'; });
+
+    /* @멘션이 없으면 ‘@all 기본’이 켜진 동안 전체 AI 비서를 호출한다 */
+    if (!tokens.length && useDefaultAll) all = true;
 
     return store.get().assistants.filter(function (a) {
       if (!a.ai || a.id === senderId) return false;
@@ -628,7 +647,7 @@
     dom.msgInput.value = '';
     autoGrow();
 
-    var targets = pickAiTargets(text);
+    var targets = pickAiTargets(text, !!s.settings.defaultAll);
     if (!targets.length) return;
 
     if (!SO.ai.available()) {
@@ -684,6 +703,13 @@
     });
 
     dom.sendBtn.addEventListener('click', sendMessage);
+
+    dom.defaultAllToggle.addEventListener('click', function () {
+      var on = !store.get().settings.defaultAll;
+      store.setDefaultAll(on);
+      toast(on ? '@all 기본 켜짐 · 이제 @멘션 없이 보내도 전체가 답합니다.'
+               : '@all 기본 꺼짐 · @이름으로 부를 때만 답합니다.', 2600);
+    });
 
     dom.msgInput.addEventListener('input', autoGrow);
     dom.msgInput.addEventListener('keydown', function (e) {
@@ -827,6 +853,7 @@
     dom.mentionChips = $('mentionChips');
     dom.msgInput = $('msgInput');
     dom.sendBtn = $('sendBtn');
+    dom.defaultAllToggle = $('defaultAllToggle');
     dom.taskForm = $('taskForm');
     dom.taskTitle = $('taskTitle');
     dom.taskAssignee = $('taskAssignee');

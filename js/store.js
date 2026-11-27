@@ -82,7 +82,8 @@
         senderId: 'me',
         firebaseUrl: '',
         geminiKey: '',
-        geminiModel: 'gemini-2.5-flash'
+        geminiModel: 'gemini-2.5-flash',
+        defaultAll: true
       },
       ui: { tab: 'chat', room: 'command', taskFilter: 'all' }
     };
@@ -189,6 +190,9 @@
       s.settings.firebaseUrl = str(raw.settings.firebaseUrl, '');
       s.settings.geminiKey = str(raw.settings.geminiKey, '');
       s.settings.geminiModel = str(raw.settings.geminiModel, 'gemini-2.5-flash');
+      /* 저장된 값이 없으면 기본 ON */
+      s.settings.defaultAll = raw.settings.defaultAll === undefined
+        ? true : !!raw.settings.defaultAll;
     }
 
     if (raw.ui && typeof raw.ui === 'object') {
@@ -428,6 +432,15 @@
       notify();
     },
 
+    /* @all 기본 토글 (이 기기에만 저장 · DB로 동기화되지 않음) */
+    setDefaultAll: function (on) {
+      var v = !!on;
+      if (state.settings.defaultAll === v) return;
+      state.settings.defaultAll = v;
+      persist();
+      notify();
+    },
+
     renameOffice: function (name) {
       var n = String(name || '').trim().slice(0, 40);
       if (!n || n === state.officeName) return;
@@ -442,6 +455,7 @@
       if (typeof patch.geminiModel === 'string' && patch.geminiModel.trim()) {
         state.settings.geminiModel = patch.geminiModel.trim();
       }
+      if (typeof patch.defaultAll === 'boolean') state.settings.defaultAll = patch.defaultAll;
       if (!state.settings.geminiModel) state.settings.geminiModel = 'gemini-2.5-flash';
       persist();
       notify();

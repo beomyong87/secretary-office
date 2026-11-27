@@ -560,6 +560,41 @@ code {
   background: #fffaf0;
 }
 
+/* @all 기본 토글 (입력창 @호출 줄 오른쪽 고정) */
+.default-all-toggle {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px 3px 5px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: #fffdf7;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+  white-space: nowrap;
+  letter-spacing: -.1px;
+  transition: background .16s, border-color .16s, color .16s;
+}
+.default-all-toggle:active { transform: scale(.96); }
+.default-all-toggle .switch {
+  width: 30px;
+  height: 18px;
+}
+.default-all-toggle .switch::after {
+  width: 14px;
+  height: 14px;
+}
+.default-all-toggle.is-on {
+  color: #7d4820;
+  border-color: #d9b98a;
+  background: #fdf1dc;
+}
+.default-all-toggle.is-on .switch { background: #8d5628; }
+.default-all-toggle.is-on .switch::after { transform: translateX(12px); }
+.default-all-label { line-height: 1; }
+
 .input-row {
   display: flex;
   align-items: flex-end;
