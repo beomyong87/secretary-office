@@ -1,0 +1,20 @@
+{
+  "name": "범용님 합동 비서실",
+  "short_name": "합동 비서실",
+  "description": "대장님과 비서들이 함께 쓰는 모바일 비서실",
+  "lang": "ko",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#f8f1e2",
+  "theme_color": "#f8f1e2",
+  "icons": [
+    {
+      "src": "assets/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

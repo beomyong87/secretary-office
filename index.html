@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#f8f1e2" />
+  <meta name="description" content="범용님 합동 비서실 - 모바일 비서실 웹앱" />
+  <title>범용님 합동 비서실</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+  <link rel="apple-touch-icon" href="assets/favicon.svg" />
+  <link rel="manifest" href="manifest.webmanifest" />
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="app" id="app">
+
+    <!-- ================= 헤더 ================= -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-avatar" aria-hidden="true">👑</div>
+        <div class="brand-text">
+          <h1 class="brand-title" id="officeName">범용님 합동 비서실</h1>
+          <p class="brand-sub" id="officeSub">범용님 전용</p>
+        </div>
+      </div>
+      <div class="header-actions">
+        <button type="button" class="conn-badge is-local" id="connBadge" title="연결 상태">
+          <span class="conn-dot" aria-hidden="true"></span>
+          <span class="conn-text" id="connText">로컬 모드</span>
+        </button>
+        <button type="button" class="icon-btn" id="settingsBtn" aria-label="설정" title="설정">⚙️</button>
+      </div>
+    </header>
+
+    <!-- ================= 메인 탭 ================= -->
+    <nav class="main-tabs" id="mainTabs" aria-label="주요 메뉴">
+      <button type="button" class="main-tab is-active" data-tab="chat">
+        <span class="main-tab-icon" aria-hidden="true">💬</span><span class="main-tab-label">회의실</span>
+      </button>
+      <button type="button" class="main-tab" data-tab="tasks">
+        <span class="main-tab-icon" aria-hidden="true">📋</span><span class="main-tab-label">작업실</span>
+      </button>
+      <button type="button" class="main-tab" data-tab="team">
+        <span class="main-tab-icon" aria-hidden="true">📊</span><span class="main-tab-label">비서현황</span>
+      </button>
+      <button type="button" class="main-tab" data-tab="memos">
+        <span class="main-tab-icon" aria-hidden="true">📝</span><span class="main-tab-label">메모</span>
+      </button>
+    </nav>
+
+    <!-- ================= 본문 ================= -->
+    <main class="views" id="views">
+
+      <!-- ---------- 회의실 ---------- -->
+      <section class="view is-active" id="view-chat" data-view="chat">
+        <div class="room-tabs" id="roomTabs" role="tablist" aria-label="회의실 선택"></div>
+        <div class="room-meta">
+          <span class="room-meta-name" id="roomMetaName">🎯 지휘실</span>
+          <span class="room-meta-dot" aria-hidden="true">·</span>
+          <span class="room-meta-on" id="roomMetaOn">ON 0명</span>
+        </div>
+
+        <div class="message-list" id="messageList" aria-live="polite"></div>
+
+        <div class="composer" id="composer">
+          <div class="chip-row" id="senderRow">
+            <span class="chip-row-label">발신</span>
+            <div class="chip-scroll" id="senderChips"></div>
+          </div>
+          <div class="chip-row chip-row--mentions">
+            <span class="chip-row-label">@호출</span>
+            <div class="chip-scroll" id="mentionChips"></div>
+          </div>
+          <div class="input-row">
+            <textarea id="msgInput" class="msg-input" rows="1" maxlength="2000"
+                      placeholder="메시지를 입력하세요 (@이름 으로 호출)" autocomplete="off"></textarea>
+            <button type="button" class="send-btn" id="sendBtn" aria-label="전송">➤</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ---------- 작업실 ---------- -->
+      <section class="view" id="view-tasks" data-view="tasks">
+        <div class="view-scroll">
+          <div class="section-head">
+            <h2 class="section-title">작업실</h2>
+            <p class="section-sub" id="taskSummary">대기 0 · 진행중 0 · 완료 0</p>
+          </div>
+
+          <form class="add-form" id="taskForm">
+            <input type="text" id="taskTitle" class="field" maxlength="120"
+                   placeholder="새 작업을 입력하세요" autocomplete="off" />
+            <div class="add-form-row">
+              <select id="taskAssignee" class="field field--select" aria-label="담당자"></select>
+              <button type="submit" class="btn btn-primary">추가</button>
+            </div>
+          </form>
+
+          <div class="filter-row" id="taskFilters"></div>
+          <div class="card-list" id="taskList"></div>
+        </div>
+      </section>
+
+      <!-- ---------- 비서현황 ---------- -->
+      <section class="view" id="view-team" data-view="team">
+        <div class="view-scroll">
+          <div class="section-head">
+            <h2 class="section-title">비서현황</h2>
+            <p class="section-sub" id="teamSummary">참여 중인 비서 0명</p>
+          </div>
+          <div class="card-list" id="teamList"></div>
+          <button type="button" class="btn btn-ghost btn-block" id="addAssistantBtn">+ 비서 추가</button>
+          <p class="hint">아이콘·이름·역할을 눌러 수정할 수 있습니다. ‘AI 응답’을 켠 비서는 Gemini 키를 설정했을 때 @호출에 자동으로 답합니다.</p>
+        </div>
+      </section>
+
+      <!-- ---------- 메모 ---------- -->
+      <section class="view" id="view-memos" data-view="memos">
+        <div class="view-scroll">
+          <div class="section-head">
+            <h2 class="section-title">메모</h2>
+            <p class="section-sub" id="memoSummary">공유 메모 · 결정사항</p>
+          </div>
+
+          <form class="memo-form" id="memoForm">
+            <textarea id="memoInput" class="field" rows="2" maxlength="1000"
+                      placeholder="공유할 메모나 결정사항을 적어두세요"></textarea>
+            <button type="submit" class="btn btn-primary btn-block">기록하기</button>
+          </form>
+
+          <div class="card-list" id="memoList"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ================= 설정 모달 ================= -->
+  <div class="modal" id="settingsModal" hidden>
+    <div class="modal-backdrop" data-close="settingsModal"></div>
+    <div class="modal-panel" role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+      <div class="modal-head">
+        <h2 class="modal-title" id="settingsTitle">설정</h2>
+        <button type="button" class="modal-close" data-close="settingsModal" aria-label="닫기">✕</button>
+      </div>
+
+      <div class="modal-body">
+        <div class="form-group">
+          <label class="label" for="settingOfficeName">비서실 이름</label>
+          <input type="text" class="field" id="settingOfficeName" maxlength="40"
+                 placeholder="범용님 합동 비서실" />
+          <p class="hint">상단 헤더에 표시됩니다.</p>
+        </div>
+
+        <hr class="divider" />
+
+        <div class="form-group">
+          <label class="label" for="settingFirebaseUrl">
+            Firebase Realtime Database URL <span class="label-tag">선택</span>
+          </label>
+          <input type="url" class="field" id="settingFirebaseUrl" spellcheck="false"
+                 placeholder="https://my-office-default-rtdb.firebaseio.com" />
+          <p class="hint">
+            입력하면 <code>/rooms</code>, <code>/tasks</code>, <code>/assistants</code>, <code>/memos</code>
+            경로로 3초마다 동기화되어 다른 기기·다른 피클과 실시간으로 공유됩니다.
+            DB 규칙(Realtime Database → 규칙)이 읽기/쓰기를 허용해야 합니다.
+          </p>
+          <div class="conn-status" id="settingsConnStatus">로컬 모드로 동작 중</div>
+          <div class="btn-row">
+            <button type="button" class="btn btn-ghost" id="testConnBtn">연결 테스트</button>
+            <button type="button" class="btn btn-ghost" id="disconnectBtn">연결 해제</button>
+          </div>
+        </div>
+
+        <hr class="divider" />
+
+        <div class="form-group">
+          <label class="label" for="settingGeminiKey">
+            Gemini API Key <span class="label-tag">선택</span>
+          </label>
+          <input type="password" class="field" id="settingGeminiKey" spellcheck="false"
+                 autocomplete="off" placeholder="AIza..." />
+          <label class="label label--small" for="settingGeminiModel">모델</label>
+          <input type="text" class="field" id="settingGeminiModel" spellcheck="false"
+                 placeholder="gemini-2.5-flash" />
+          <p class="hint">
+            이 브라우저의 <code>localStorage</code>에만 저장되며 서버로 전송되지 않습니다.
+            입력하면 <b>AI 응답</b>이 켜진 비서가 <code>@이름</code> 호출에 자동으로 답합니다.
+          </p>
+        </div>
+
+        <hr class="divider" />
+
+        <div class="form-group">
+          <label class="label">데이터</label>
+          <p class="hint" id="dataInfo">이 기기에 저장된 데이터를 사용 중입니다.</p>
+          <button type="button" class="btn btn-danger-ghost" id="resetDataBtn">이 기기 데이터 초기화</button>
+        </div>
+      </div>
+
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" data-close="settingsModal">닫기</button>
+        <button type="button" class="btn btn-primary" id="saveSettingsBtn">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= 비서 편집 모달 ================= -->
+  <div class="modal" id="assistantModal" hidden>
+    <div class="modal-backdrop" data-close="assistantModal"></div>
+    <div class="modal-panel modal-panel--small" role="dialog" aria-modal="true" aria-labelledby="assistantTitle">
+      <div class="modal-head">
+        <h2 class="modal-title" id="assistantTitle">비서 추가</h2>
+        <button type="button" class="modal-close" data-close="assistantModal" aria-label="닫기">✕</button>
+      </div>
+      <form id="assistantForm">
+        <div class="modal-body">
+          <input type="hidden" id="assistantId" />
+          <div class="form-group">
+            <label class="label" for="assistantIcon">아이콘</label>
+            <div class="icon-picker" id="iconPicker"></div>
+            <input type="text" class="field field--icon" id="assistantIcon" maxlength="4" placeholder="🥒" />
+          </div>
+          <div class="form-group">
+            <label class="label" for="assistantName">이름</label>
+            <input type="text" class="field" id="assistantName" maxlength="20" placeholder="예: 리서처" />
+          </div>
+          <div class="form-group">
+            <label class="label" for="assistantRole">역할</label>
+            <input type="text" class="field" id="assistantRole" maxlength="30" placeholder="예: 조사 · 리서치" />
+          </div>
+          <label class="switch-row">
+            <input type="checkbox" id="assistantAi" />
+            <span class="switch"></span>
+            <span class="switch-label">AI 응답 (Gemini 키 설정 시 @호출에 자동 응답)</span>
+          </label>
+        </div>
+        <div class="modal-foot">
+          <button type="button" class="btn btn-ghost" data-close="assistantModal">취소</button>
+          <button type="submit" class="btn btn-primary">저장</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ================= 확인 모달 ================= -->
+  <div class="modal" id="confirmModal" hidden>
+    <div class="modal-backdrop" data-close="confirmModal"></div>
+    <div class="modal-panel modal-panel--small" role="dialog" aria-modal="true">
+      <div class="modal-head">
+        <h2 class="modal-title" id="confirmTitle">확인</h2>
+      </div>
+      <div class="modal-body">
+        <p class="confirm-message" id="confirmMessage"></p>
+      </div>
+      <div class="modal-foot">
+        <button type="button" class="btn btn-ghost" id="confirmCancelBtn">취소</button>
+        <button type="button" class="btn btn-danger" id="confirmOkBtn">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" hidden></div>
+
+  <script src="js/store.js"></script>
+  <script src="js/sync.js"></script>
+  <script src="js/ai.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
