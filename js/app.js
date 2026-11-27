@@ -626,6 +626,9 @@
     var s = store.get();
     dom.settingOfficeName.value = s.officeName;
     dom.settingFirebaseUrl.value = s.settings.firebaseUrl;
+    dom.settingFirebaseEmail.value = s.settings.firebaseEmail || '';
+    dom.settingFirebasePassword.value = s.settings.firebasePassword || '';
+    dom.settingFirebaseApiKey.value = s.settings.firebaseApiKey || '';
     dom.settingGeminiKey.value = s.settings.geminiKey;
     dom.settingGeminiModel.value = s.settings.geminiModel || 'gemini-3.5-flash-lite';
     renderSettingsInfo();
@@ -640,6 +643,9 @@
 
     store.setSettings({
       firebaseUrl: url,
+      firebaseEmail: dom.settingFirebaseEmail.value.trim(),
+      firebasePassword: dom.settingFirebasePassword.value,
+      firebaseApiKey: dom.settingFirebaseApiKey.value.trim(),
       geminiKey: dom.settingGeminiKey.value.trim(),
       geminiModel: dom.settingGeminiModel.value.trim() || 'gemini-3.5-flash-lite'
     });
@@ -670,7 +676,8 @@
     dom.settingsConnStatus.textContent = '연결 확인 중…';
     SO.sync.test(url).then(function () {
       dom.settingsConnStatus.className = 'conn-status is-live';
-      dom.settingsConnStatus.textContent = '연결 성공 · 읽기 가능. (저장을 누르면 동기화가 시작됩니다)';
+      var label = SO.sync.hasAuth() ? '인증 후 ' : '';
+      dom.settingsConnStatus.textContent = '연결 성공 · ' + label + '읽기 가능. (저장을 누르면 동기화가 시작됩니다)';
     }, function (err) {
       dom.settingsConnStatus.className = 'conn-status is-error';
       dom.settingsConnStatus.textContent = '연결 실패 · ' + (err && err.message ? err.message : '알 수 없는 오류');
@@ -1100,6 +1107,9 @@
     dom.settingsModal = $('settingsModal');
     dom.settingOfficeName = $('settingOfficeName');
     dom.settingFirebaseUrl = $('settingFirebaseUrl');
+    dom.settingFirebaseEmail = $('settingFirebaseEmail');
+    dom.settingFirebasePassword = $('settingFirebasePassword');
+    dom.settingFirebaseApiKey = $('settingFirebaseApiKey');
     dom.settingGeminiKey = $('settingGeminiKey');
     dom.settingGeminiModel = $('settingGeminiModel');
     dom.settingsConnStatus = $('settingsConnStatus');

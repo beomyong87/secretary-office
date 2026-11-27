@@ -92,6 +92,10 @@
       settings: {
         senderId: 'me',
         firebaseUrl: '',
+        /* 비서실 전용 계정 인증 (이 기기 localStorage에만 저장 · 저장소 코드에는 넣지 않음) */
+        firebaseEmail: '',
+        firebasePassword: '',
+        firebaseApiKey: '',
         geminiKey: '',
         geminiModel: DEFAULT_GEMINI_MODEL,
         defaultAll: true
@@ -199,6 +203,9 @@
     if (raw.settings && typeof raw.settings === 'object') {
       s.settings.senderId = str(raw.settings.senderId, 'me');
       s.settings.firebaseUrl = str(raw.settings.firebaseUrl, '');
+      s.settings.firebaseEmail = str(raw.settings.firebaseEmail, '');
+      s.settings.firebasePassword = typeof raw.settings.firebasePassword === 'string' ? raw.settings.firebasePassword : '';
+      s.settings.firebaseApiKey = str(raw.settings.firebaseApiKey, '');
       s.settings.geminiKey = str(raw.settings.geminiKey, '');
       s.settings.geminiModel = normalizeGeminiModel(raw.settings.geminiModel);
       /* 저장된 값이 없으면 기본 ON */
@@ -481,6 +488,9 @@
     setSettings: function (patch) {
       if (!patch) return;
       if (typeof patch.firebaseUrl === 'string') state.settings.firebaseUrl = patch.firebaseUrl.trim();
+      if (typeof patch.firebaseEmail === 'string') state.settings.firebaseEmail = patch.firebaseEmail.trim();
+      if (typeof patch.firebasePassword === 'string') state.settings.firebasePassword = patch.firebasePassword;
+      if (typeof patch.firebaseApiKey === 'string') state.settings.firebaseApiKey = patch.firebaseApiKey.trim();
       if (typeof patch.geminiKey === 'string') state.settings.geminiKey = patch.geminiKey.trim();
       if (typeof patch.geminiModel === 'string' && patch.geminiModel.trim()) {
         state.settings.geminiModel = normalizeGeminiModel(patch.geminiModel);

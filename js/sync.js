@@ -1,6 +1,9 @@
 /* =========================================================
    sync.js — Firebase Realtime Database 동기화 (REST + polling)
-   키 하드코딩 없음. 사용자가 설정에서 입력한 DB URL만 사용합니다.
+   키 하드코딩 없음. 사용자가 설정에서 입력한 DB URL과
+   (선택) 비서실 계정 이메일·비밀번호·웹 API 키만 사용합니다.
+   계정을 넣으면 Firebase Auth로 로그인해 idToken을 발급·갱신하고
+   모든 REST 요청에 ?auth=<idToken>을 붙입니다.
    ========================================================= */
 (function (global) {
   'use strict';
@@ -8,6 +11,13 @@
   var SO = global.SO = global.SO || {};
   var PATHS = ['rooms', 'tasks', 'assistants', 'memos', 'meta'];
   var POLL_MS = 3000;
+
+  var AUTH_SIGNIN_URL = 'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword';
+  var AUTH_REFRESH_URL = 'https://securetoken.googleapis.com/v1/token';
+  /* 만료 5분 전에 미리 갱신한다 (expiresIn 3600초) */
+  var REFRESH_MARGIN_MS = 5 * 60 * 1000;
+  /* 로그인 실패를 연속으로 재시도하지 않도록 잠시 쉬는 시간 */
+  var AUTH_FAIL_BACKOFF_MS = 30 * 1000;
 
   var baseUrl = '';
   var timer = null;
@@ -17,6 +27,17 @@
   var lastRemoteJson = '';
   var status = { mode: 'local', message: '' };
   var subscribers = [];
+
+  var auth = {
+    idToken: '',
+    refreshToken: '',
+    expiresAt: 0,
+    email: '',
+    sig: '',            /* 현재 토큰을 발급한 계정 설정 지문 */
+    pending: null,      /* 진행 중인 로그인/갱신 Promise */
+    failAt: 0,
+    failMsg: ''
+  };
 
   /* ---------- 상태 알림 ---------- */
   function setStatus(mode, message) {
@@ -51,10 +72,149 @@
     return (base || baseUrl) + '/' + path + '.json';
   }
 
+  /* ---------- 인증 (Firebase Auth 이메일/비밀번호) ---------- */
+  function authConfig() {
+    var settings = (SO.store.get() && SO.store.get().settings) || {};
+    return {
+      email: String(settings.firebaseEmail || '').trim(),
+      password: String(settings.firebasePassword || ''),
+      apiKey: String(settings.firebaseApiKey || '').trim()
+    };
+  }
+
+  function configSignature(c) {
+    c = c || authConfig();
+    return c.email + '\u0001' + c.password + '\u0001' + c.apiKey;
+  }
+
+  function isAuthConfigured() {
+    var c = authConfig();
+    return !!(c.email && c.password && c.apiKey);
+  }
+
+  function authError(code, detail) {
+    var e = new Error('비서실 계정 로그인에 실패했습니다: ' + (detail || code || '알 수 없는 오류'));
+    e.kind = 'auth';
+    e.code = code || '';
+    return e;
+  }
+
+  function storeTokens(data, fallbackEmail) {
+    auth.idToken = String(data.idToken || '');
+    if (data.refreshToken) auth.refreshToken = String(data.refreshToken);
+    var ttl = Number(data.expiresIn || 3600) * 1000;
+    if (!isFinite(ttl) || ttl <= 0) ttl = 3600 * 1000;
+    auth.expiresAt = Date.now() + ttl;
+    auth.email = String(data.email || fallbackEmail || '');
+    auth.sig = configSignature();
+    auth.failAt = 0;
+    auth.failMsg = '';
+    return auth.idToken;
+  }
+
+  function resetTokens() {
+    auth.idToken = '';
+    auth.refreshToken = '';
+    auth.expiresAt = 0;
+    auth.sig = '';
+  }
+
+  function signIn() {
+    var c = authConfig();
+    if (!(c.email && c.password && c.apiKey)) return Promise.resolve('');
+    resetTokens();
+    return fetch(AUTH_SIGNIN_URL + '?key=' + encodeURIComponent(c.apiKey), {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: c.email, password: c.password, returnSecureToken: true })
+    }).then(function (res) {
+      return res.json().catch(function () { return null; }).then(function (data) {
+        if (!res.ok || !data || !data.idToken) {
+          var raw = data && data.error && data.error.message ? data.error.message : ('HTTP ' + res.status);
+          var code = raw;
+          var friendly = raw;
+          if (raw === 'EMAIL_NOT_FOUND' || raw === 'INVALID_PASSWORD' || raw === 'INVALID_LOGIN_CREDENTIALS') {
+            friendly = '이메일 또는 비밀번호가 맞지 않습니다. (' + raw + ')';
+          } else if (raw === 'API_KEY_INVALID' || raw === 'INVALID_API_KEY') {
+            friendly = '웹 API 키가 올바르지 않습니다. (' + raw + ')';
+          } else if (raw === 'OPERATION_NOT_ALLOWED') {
+            friendly = '이메일/비밀번호 로그인이 사용 설정되지 않았습니다. (' + raw + ')';
+          } else if (raw === 'TOO_MANY_ATTEMPTS_TRY_LATER') {
+            friendly = '시도가 너무 많습니다. 잠시 뒤에 다시 시도하세요. (' + raw + ')';
+          }
+          throw authError(code, friendly);
+        }
+        return storeTokens(data, c.email);
+      });
+    });
+  }
+
+  function refresh() {
+    var c = authConfig();
+    if (!auth.refreshToken || !c.apiKey) return signIn();
+    return fetch(AUTH_REFRESH_URL + '?key=' + encodeURIComponent(c.apiKey), {
+      method: 'POST',
+      cache: 'no-store',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'grant_type=refresh_token&refresh_token=' + encodeURIComponent(auth.refreshToken)
+    }).then(function (res) {
+      return res.json().catch(function () { return null; }).then(function (data) {
+        if (!res.ok || !data || !data.id_token) {
+          /* refreshToken이 폐기·만료됐으면 비밀번호로 다시 로그인한다 */
+          return signIn();
+        }
+        return storeTokens({
+          idToken: data.id_token,
+          refreshToken: data.refresh_token,
+          expiresIn: data.expires_in,
+          email: data.user_id
+        }, c.email);
+      });
+    }, function () {
+      return signIn();
+    });
+  }
+
+  function ensureToken(force) {
+    if (!isAuthConfigured()) return Promise.resolve('');
+    var sig = configSignature();
+    if (auth.sig && auth.sig !== sig) resetTokens();
+    if (!force && auth.idToken && Date.now() < auth.expiresAt - REFRESH_MARGIN_MS && auth.sig === sig) {
+      return Promise.resolve(auth.idToken);
+    }
+    if (auth.failAt && Date.now() - auth.failAt < AUTH_FAIL_BACKOFF_MS) {
+      return Promise.reject(authError('BACKOFF', auth.failMsg || '잠시 뒤 다시 시도합니다.'));
+    }
+    if (auth.pending) return auth.pending;
+
+    var job = (auth.refreshToken ? refresh() : signIn()).then(function (token) {
+      auth.pending = null;
+      return token;
+    }, function (err) {
+      auth.pending = null;
+      auth.failAt = Date.now();
+      auth.failMsg = err && err.message ? err.message : '';
+      throw err;
+    });
+
+    auth.pending = job;
+    return job;
+  }
+
+  function withAuth(url, force) {
+    return ensureToken(force).then(function (token) {
+      if (!token) return url;
+      return url + (url.indexOf('?') >= 0 ? '&' : '?') + 'auth=' + encodeURIComponent(token);
+    });
+  }
+
   /* ---------- 요청 ---------- */
   function parseBody(res, path) {
     if (res.status === 401 || res.status === 403) {
-      var e1 = new Error('데이터베이스 규칙이 접근을 막았습니다 (HTTP ' + res.status + '). Firebase 콘솔 → Realtime Database → 규칙에서 읽기/쓰기를 허용하세요.');
+      var e1 = new Error('데이터베이스 규칙이 접근을 막았습니다 (HTTP ' + res.status + '). ' +
+        '설정(⚙️)의 비서실 계정 이메일·비밀번호·웹 API 키를 확인하거나, ' +
+        'Firebase 콘솔 → Realtime Database → 규칙에서 로그인한 사용자의 읽기/쓰기를 허용하세요.');
       e1.kind = 'rules';
       throw e1;
     }
@@ -69,26 +229,41 @@
     });
   }
 
+  function request(method, path, body, base) {
+    var url = endpoint(path, base);
+
+    function exec(isRetry) {
+      return withAuth(url, isRetry).then(function (fullUrl) {
+        var opts = { method: method, cache: 'no-store' };
+        if (method === 'PUT') {
+          opts.headers = { 'Content-Type': 'application/json' };
+          opts.body = JSON.stringify(body == null ? null : body);
+        } else if (method === 'GET') {
+          opts.headers = { 'Accept': 'application/json' };
+        }
+        return fetch(fullUrl, opts).then(function (res) {
+          /* 토큰 만료·폐기로 막히면 한 번 새 토큰으로 다시 시도한다 */
+          if ((res.status === 401 || res.status === 403) && isAuthConfigured() && !isRetry) {
+            return exec(true);
+          }
+          return parseBody(res, path);
+        });
+      });
+    }
+
+    return exec(false);
+  }
+
   function get(path, base) {
-    return fetch(endpoint(path, base), {
-      method: 'GET',
-      cache: 'no-store',
-      headers: { 'Accept': 'application/json' }
-    }).then(function (res) { return parseBody(res, path); });
+    return request('GET', path, undefined, base);
   }
 
   function put(path, value) {
-    return fetch(endpoint(path), {
-      method: 'PUT',
-      cache: 'no-store',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(value == null ? null : value)
-    }).then(function (res) { return parseBody(res, path); });
+    return request('PUT', path, value);
   }
 
   function del(path) {
-    return fetch(endpoint(path), { method: 'DELETE', cache: 'no-store' })
-      .then(function (res) { return parseBody(res, path); });
+    return request('DELETE', path);
   }
 
   function fetchAll(base) {
@@ -134,6 +309,11 @@
     return true;
   }
 
+  function authLabel() {
+    if (!isAuthConfigured()) return '';
+    return auth.email ? auth.email + ' 인증됨' : '비서실 계정 인증됨';
+  }
+
   function pull(force) {
     if (!baseUrl) return Promise.resolve(false);
     if (pulling) return Promise.resolve(false);
@@ -145,12 +325,12 @@
       failureCount = 0;
       var json = JSON.stringify(remote);
       if (json === lastRemoteJson) {
-        setStatus('live', status.mode === 'live' ? status.message : '');
+        setStatus('live', authLabel() || (status.mode === 'live' ? status.message : ''));
         return true;
       }
       lastRemoteJson = json;
       SO.store.applyRemote(remote);
-      setStatus('live', '');
+      setStatus('live', authLabel());
       return true;
     }, function (err) {
       pulling = false;
@@ -168,10 +348,7 @@
       put('assistants', snap.assistants),
       put('memos', snap.memos),
       put('meta/officeName', SO.store.get().officeName)
-    ]).then(function (results) {
-      if (results.indexOf(false) >= 0) throw new Error('초기 데이터 업로드에 실패했습니다.');
-      return true;
-    });
+    ]).then(function () { return true; });
   }
 
   function pushMissing(remote) {
@@ -210,6 +387,7 @@
 
     if (!url) {
       baseUrl = '';
+      resetTokens();
       setStatus('local', '');
       return Promise.resolve({ ok: true, mode: 'local' });
     }
@@ -225,18 +403,20 @@
     }
 
     baseUrl = url;
-    setStatus('connecting', '연결 확인 중…');
+    setStatus('connecting', isAuthConfigured() ? '비서실 계정으로 로그인 중…' : '연결 확인 중…');
 
-    return fetchAll().then(function (remote) {
+    return ensureToken().then(function () {
+      return fetchAll();
+    }).then(function (remote) {
       if (isEmptyDb(remote)) {
         return pushSnapshot().then(function () {
-          setStatus('live', '새 DB에 현재 내용을 올렸습니다');
+          setStatus('live', '새 DB에 현재 내용을 올렸습니다' + (authLabel() ? ' · ' + authLabel() : ''));
           startTimer();
           return { ok: true, seeded: true, mode: 'live' };
         });
       }
       SO.store.applyRemote(remote);
-      setStatus('live', '');
+      setStatus('live', authLabel());
       startTimer();
       return pushMissing(remote).then(function () {
         return { ok: true, seeded: false, mode: 'live' };
@@ -255,6 +435,7 @@
     baseUrl = '';
     pending = 0;
     lastRemoteJson = '';
+    resetTokens();
     setStatus('local', '');
   }
 
@@ -262,7 +443,9 @@
     var u = normalizeUrl(url);
     if (!u) return Promise.reject(new Error('URL을 입력해 주세요.'));
     if (!isDbUrl(u)) return Promise.reject(new Error('URL 형식이 올바르지 않습니다.'));
-    return fetchAll(u).then(function () { return true; });
+    return ensureToken().then(function () {
+      return fetchAll(u);
+    }).then(function () { return true; });
   }
 
   function init() {
@@ -292,6 +475,8 @@
     subscribe: subscribe,
     status: getStatus,
     hasUrl: function () { return !!baseUrl; },
+    hasAuth: isAuthConfigured,
+    authEmail: function () { return isAuthConfigured() ? auth.email : ''; },
     POLL_MS: POLL_MS
   };
 

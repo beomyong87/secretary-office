@@ -86,6 +86,29 @@ python3 -m http.server 8000
 
 > ⚠️ 공개 저장소에 DB URL을 적어두지 않았습니다. URL을 아는 사람은 규칙이 열려 있으면 읽고 쓸 수 있으므로, 공유 범위를 좁히려면 Firebase 인증 규칙을 함께 설정하세요.
 
+## 비서실 계정 인증 (선택 · 규칙을 멤버 전용으로 좁힐 때)
+
+DB 규칙이 `auth != null` 처럼 로그인을 요구할 때 쓰는 설정입니다.
+
+1. Firebase 콘솔 → **Authentication** → **로그인 방법**에서 `이메일/비밀번호`를 사용 설정하고, **사용자** 탭에서 비서실 공용 계정(이메일·비밀번호)을 하나 만듭니다.
+2. **프로젝트 설정(⚙️) → 일반**에서 웹 앱을 등록하고 **웹 API 키**(`AIza…`)를 확인합니다.
+3. 앱에서 **⚙️ 설정 → Firebase Realtime Database URL**과 함께 **비서실 계정 이메일 · 비밀번호 · 웹 API 키**를 넣고 **연결 테스트 → 저장**합니다.
+
+세 값을 넣으면 앱이 `accounts:signInWithPassword`로 로그인해 `idToken`을 받고, 만료(1시간) 5분 전에 `refreshToken`으로 자동 갱신하며 모든 `GET/PUT/DELETE` 요청에 `?auth=<idToken>`을 붙입니다. 401/403이 오면 토큰을 새로 받아 한 번 다시 시도합니다.
+
+- 값은 **이 브라우저의 localStorage에만** 저장되고 저장소 코드에는 들어가지 않습니다.
+- 세 값을 비우면 예전처럼 인증 없이 접속합니다(공개 규칙에서만 동작).
+- 규칙 예시:
+
+```json
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null"
+  }
+}
+```
+
 ## Gemini API 연결 (선택)
 
 1. <https://aistudio.google.com/apikey> 에서 API 키를 발급합니다.

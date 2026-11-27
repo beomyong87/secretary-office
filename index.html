@@ -248,6 +248,21 @@
             경로로 3초마다 동기화되어 다른 기기·다른 피클과 실시간으로 공유됩니다.
             DB 규칙(Realtime Database → 규칙)이 읽기/쓰기를 허용해야 합니다.
           </p>
+          <label class="label label--small" for="settingFirebaseEmail">비서실 계정 이메일</label>
+          <input type="email" class="field" id="settingFirebaseEmail" spellcheck="false"
+                 autocomplete="username" placeholder="member@…" />
+          <label class="label label--small" for="settingFirebasePassword">비밀번호</label>
+          <input type="password" class="field" id="settingFirebasePassword" spellcheck="false"
+                 autocomplete="current-password" placeholder="비서실 전용 계정 비밀번호" />
+          <label class="label label--small" for="settingFirebaseApiKey">웹 API 키</label>
+          <input type="password" class="field" id="settingFirebaseApiKey" spellcheck="false"
+                 autocomplete="off" placeholder="AIza…" />
+          <p class="hint">
+            세 값을 모두 넣으면 자동으로 로그인해 <code>idToken</code>을 발급하고 만료 전에 갱신하며,
+            모든 요청에 <code>?auth=</code>를 붙입니다. DB 규칙이 <code>auth != null</code>이어도 접속됩니다.
+            비워 두면 예전처럼 인증 없이 접속합니다. 값은 이 브라우저의 <code>localStorage</code>에만
+            저장되며 저장소 코드에는 들어가지 않습니다.
+          </p>
           <div class="conn-status" id="settingsConnStatus">로컬 모드로 동작 중</div>
           <div class="btn-row">
             <button type="button" class="btn btn-ghost" id="testConnBtn">연결 테스트</button>
